@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>BOKI HUNTER</title>
+<style>
+
+body{
+font-family:sans-serif;
+text-align:center;
+background-image:url('example.jpg');
+background-size:cover;
+background-position:center;
+color:white;
+}
+
+.window{
+width:650px;
+margin:20px auto;
+background:black;
+border:5px solid white;
+padding:15px;
+}
+
+#monster{
+width:220px;
+transition:transform 0.1s;
+}
+
+button{
+font-size:20px;
+padding:10px;
+margin:10px;
+}
+
+.damage{
+position:absolute;
+font-size:40px;
+color:red;
+font-weight:bold;
+pointer-events:none;
+animation:pop 1s forwards;
+}
+
+@keyframes pop{
+0%{transform:translateY(0);opacity:1}
+100%{transform:translateY(-80px);opacity:0}
+}
+
+.shake{
+animation:shake 0.4s;
+}
+
+@keyframes shake{
+0%{transform:translateX(0)}
+25%{transform:translateX(-10px)}
+50%{transform:translateX(10px)}
+75%{transform:translateX(-10px)}
+100%{transform:translateX(0)}
+}
+
+/* 登場演出オーバーレイ */
+#appearOverlay{
+display:none;
+position:fixed;
+top:0;left:0;
+width:100%;height:100%;
+background:rgba(0,0,0,0.7);
+z-index:50;
+justify-content:flex-end;
+align-items:flex-end;
+}
+
+#appearBox{
+width:100%;
+background:black;
+border-top:4px solid white;
+padding:20px 30px;
+font-size:28px;
+text-align:left;
+min-height:80px;
+letter-spacing:0.08em;
+}
+
+#resultScreen{
+display:none;
+position:fixed;
+top:0;left:0;
+width:100%;height:100%;
+background-size:cover;
+background-position:center;
+z-index:100;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+}
+
+#resultBox{
+background:rgba(0,0,0,0.75);
+border:5px solid white;
+padding:30px 50px;
+font-size:24px;
+line-height:2;
+color:white;
+text-shadow:2px 2px 4px black;
+margin-top:40vh;
+}
+
+#resultBox h2{
+font-size:36px;
+margin-bottom:10px;
+}
+
+#retryBtn{
+margin-top:20px;
+font-size:22px;
+padding:12px 30px;
+cursor:pointer;
+}
+
+.flash{
+position:fixed;
+top:0;left:0;
+width:100%;height:100%;
+background:white;
+opacity:0.6;
+pointer-events:none;
+animation:flash 0.3s forwards;
+}
+
+@keyframes flash{
+0%{opacity:0.7}
+100%{opacity:0}
+}
+
+</style>
+</head>
+<body>
+
+<h1 id="gameTitle"></h1>
+<p id="startMsgEl" style="font-size:20px;margin:0 0 10px;"></p>
+
+<div class="window">
+クラス <input id="class">
+番号 <input id="num">
+氏名 <input id="name">
+<br><br>
+<button onclick="startGame()">ゲーム開始</button>
+</div>
+
+<div id="battle" style="display:none">
+
+<h2 id="monsterName"></h2>
+<img id="monster">
+
+<div class="window">
+<p id="question"></p>
+<div id="choices"></div>
+<p>勇者HP <span id="playerHP">100</span></p>
+<p>敵HP <span id="enemyHP">100</span></p>
+<p id="message"></p>
+<p>倒したモンスター <span id="kill">0</span></p>
+</div>
+
+</div>
+
+<!-- 登場演出 -->
+<div id="appearOverlay">
+  <div id="appearBox"></div>
+</div>
+
+<!-- クリア・ゲームオーバー画面 -->
+<div id="resultScreen">
+  <div id="resultBox">
+    <h2 id="resultTitle"></h2>
+    <div id="resultInfo"></div>
+    <button id="retryBtn" onclick="location.reload()">もう一度プレイ</button>
+  </div>
+</div>
+
+<script>
+
+const CFG = {"gameTitle":"BOKI HUNTER","startMsg":"","mode":"dragon","random":true,"monsters":{"slime":{"name":"スライム","img":"monster1.png","hp":200},"goblin":{"name":"ゴブリン","img":"monster2.png","hp":300},"dragon":{"name":"ドラゴン","img":"monster3.png","hp":400}},"atkDmg":40,"recvDmg":30,"slime":[["資産の増加","借方"],["資産の減少","貸方"],["費用の発生","借方"],["収益の発生","貸方"],["負債の増加","貸方"],["負債の減少","借方"],["純資産の増加","貸方"],["純資産の減少","借方"]],"goblin":[["現金","資産"],["売掛金","資産"],["商品","資産"],["貸付金","資産"],["建物","資産"],["土地","資産"],["買掛金","負債"],["借入金","負債"],["給料","費用"],["広告料","費用"],["支払家賃","費用"],["通信費","費用"],["交通費","費用",""],["雑費","費用"],["支払利息","費用"],["受取手数料","収益"],["受取利息","収益"],["商品売買益","収益"]],"dragon":[["現金の出資を受けて開業した","現金/資本金","資本金/現金","当座預金/資本金","資本金/当座預金"],["商品を仕入れ、代金は掛けとした","仕入/買掛金","仕入/未払金","仕入/現金","仕入/当座預金"],["広告料を現金で支払った","広告料/現金","現金/広告料","交通費/現金","広告料/当座預金"],["現金を借りた","現金/借入金","現金/貸付金","現金/買掛金","買掛金/現金"],["買掛金を現金で支払った","買掛金/現金","現金/借入金","現金/貸付金","現金/買掛金"],["給料を現金で支払った","給料/現金","現金/広告料","交通費/現金","広告料/当座預金"]]}
+
+document.getElementById("gameTitle").textContent = CFG.gameTitle
+if(CFG.startMsg) document.getElementById("startMsgEl").textContent = CFG.startMsg
+
+let monsters=[]
+let playerHP=100
+let enemyHP=100
+let current=0
+let kills=0
+let startTime
+let busy=false
+
+function startGame(){
+playerHP=100
+kills=0
+current=0
+startTime=Date.now()
+
+if(CFG.mode=="slime")  monsters=["slime"]
+if(CFG.mode=="goblin") monsters=["goblin"]
+if(CFG.mode=="dragon") monsters=["dragon"]
+if(CFG.mode=="all")    monsters=["slime","goblin","dragon"]
+
+document.getElementById("battle").style.display="block"
+document.getElementById("playerHP").textContent=playerHP
+
+nextMonster()
+}
+
+function nextMonster(){
+let type=monsters[current]
+let m=CFG.monsters[type]
+
+enemyHP=m.hp
+document.getElementById("enemyHP").textContent=enemyHP
+document.getElementById("monster").src=m.img
+document.getElementById("monsterName").textContent=m.name
+
+showAppear(m.name, function(){
+ask()
+})
+}
+
+function showAppear(name, callback){
+busy=true
+let overlay=document.getElementById("appearOverlay")
+let box=document.getElementById("appearBox")
+overlay.style.display="flex"
+box.textContent=""
+
+let text=name+"が　あらわれた！"
+let i=0
+let timer=setInterval(function(){
+box.textContent+=text[i]
+i++
+if(i>=text.length){
+clearInterval(timer)
+setTimeout(function(){
+overlay.style.display="none"
+busy=false
+callback()
+},900)
+}
+},80)
+}
+
+function random(a){
+return a[Math.floor(Math.random()*a.length)]
+}
+
+function getQuestion(type){
+let pool=CFG[type]
+if(CFG.random) return random(pool)
+let idx=kills % pool.length
+return pool[idx]
+}
+
+function typeText(text){
+let el=document.getElementById("message")
+el.textContent=""
+let i=0
+let timer=setInterval(function(){
+el.textContent+=text[i]
+i++
+if(i>=text.length)clearInterval(timer)
+},30)
+}
+
+function ask(){
+let type=monsters[current]
+let q=getQuestion(type)
+
+document.getElementById("question").textContent=q[0]
+
+let c=document.getElementById("choices")
+c.innerHTML=""
+
+if(type=="slime"){
+btn("借方",q[1])
+btn("貸方",q[1])
+}
+
+if(type=="goblin"){
+["資産","負債","純資産","収益","費用"].forEach(x=>btn(x,q[1]))
+}
+
+if(type=="dragon"){
+let choices=[q[1],q[2],q[3],q[4]]
+choices.sort(()=>Math.random()-0.5)
+choices.forEach(c=>btn(c,q[1]))
+}
+}
+
+function btn(text,ans){
+let b=document.createElement("button")
+b.textContent=text
+b.onclick=()=>answer(text==ans)
+document.getElementById("choices").appendChild(b)
+}
+
+function damagePopup(value){
+let d=document.createElement("div")
+d.className="damage"
+d.textContent=(value>0?"+":"")+value
+d.style.left=(window.innerWidth/2-30)+"px"
+d.style.top=(window.innerHeight/2)+"px"
+document.body.appendChild(d)
+setTimeout(()=>d.remove(),1000)
+}
+
+function flash(){
+let f=document.createElement("div")
+f.className="flash"
+document.body.appendChild(f)
+setTimeout(()=>f.remove(),300)
+}
+
+function shakeMonster(){
+let m=document.getElementById("monster")
+m.classList.add("shake")
+setTimeout(()=>m.classList.remove("shake"),400)
+}
+
+function answer(ok){
+if(busy)return
+busy=true
+
+if(ok){
+enemyHP-=CFG.atkDmg
+typeText("モンスターに"+CFG.atkDmg+"ダメージ！")
+damagePopup(CFG.atkDmg)
+flash()
+shakeMonster()
+}else{
+playerHP-=CFG.recvDmg
+typeText("勇者は"+CFG.recvDmg+"ダメージを受けた！")
+damagePopup(-CFG.recvDmg)
+}
+
+document.getElementById("playerHP").textContent=playerHP
+document.getElementById("enemyHP").textContent=enemyHP
+
+if(playerHP<=0){
+showResult(false)
+return
+}
+
+if(enemyHP<=0){
+kills++
+document.getElementById("kill").textContent=kills
+current++
+
+if(current>=monsters.length){
+let t=((Date.now()-startTime)/1000).toFixed(1)
+showResult(true,t)
+return
+}
+
+setTimeout(nextMonster,800)
+busy=false
+return
+}
+
+setTimeout(function(){
+busy=false
+ask()
+},800)
+}
+
+function showResult(isCleared,time){
+let screen=document.getElementById("resultScreen")
+let title=document.getElementById("resultTitle")
+let info=document.getElementById("resultInfo")
+
+let now=new Date()
+let dateStr=now.getFullYear()+"/"+(now.getMonth()+1).toString().padStart(2,"0")+"/"+now.getDate().toString().padStart(2,"0")
+let timeStr=now.getHours().toString().padStart(2,"0")+":"+now.getMinutes().toString().padStart(2,"0")+":"+now.getSeconds().toString().padStart(2,"0")
+
+let cls=document.getElementById("class").value
+let num=document.getElementById("num").value
+let name=document.getElementById("name").value
+
+if(isCleared){
+screen.style.backgroundImage="url('clear.png')"
+title.textContent="★ クリア！ ★"
+info.innerHTML=
+"タイム："+time+"秒<br>"+
+"日付："+dateStr+"<br>"+
+"時刻："+timeStr+"<br>"+
+"クラス："+cls+"<br>"+
+"番号："+num+"<br>"+
+"氏名："+name+"<br><br>"+
+"📸 スクリーンショットを提出してください"
+}else{
+screen.style.backgroundImage="url('GameOver.png')"
+title.textContent="GAME OVER"
+info.innerHTML=
+"日付："+dateStr+"<br>"+
+"時刻："+timeStr+"<br>"+
+"クラス："+cls+"<br>"+
+"番号："+num+"<br>"+
+"氏名："+name
+}
+
+screen.style.display="flex"
+}
+
+</script>
+</body>
+</html>
