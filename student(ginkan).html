@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BOKI HUNTER</title>
+<style>
+*{box-sizing:border-box;}
+
+body{
+font-family:sans-serif;
+text-align:center;
+background-color:#222;
+color:white;
+margin:0;
+padding:10px;
+min-height:100vh;
+position:relative;
+}
+
+/* 背景画像レイヤー：スマホでも正しくフィット */
+#bgLayer{
+position:fixed;
+top:0;left:0;
+width:100%;height:100%;
+object-fit:cover;
+object-position:center;
+z-index:-1;
+display:block;
+}
+
+/* Safariガイドバナー */
+#safariGuide{
+display:none;
+position:fixed;
+top:0;left:0;width:100%;
+background:#e05000;
+color:white;
+font-size:15px;
+padding:12px 16px 14px;
+z-index:9999;
+line-height:1.7;
+text-align:left;
+box-shadow:0 2px 8px rgba(0,0,0,0.5);
+}
+#safariGuide b{font-size:17px;display:block;margin-bottom:4px;}
+#safariGuide ol{margin:4px 0 0 18px;padding:0;}
+#guideClose{
+float:right;background:white;color:#e05000;
+border:none;border-radius:4px;padding:4px 10px;
+font-size:14px;font-weight:bold;cursor:pointer;margin-left:8px;
+}
+
+.window{
+width:95%;max-width:650px;
+margin:16px auto;
+background:black;
+border:4px solid white;
+padding:14px;
+}
+
+#monster{width:180px;max-width:60vw;transition:transform 0.1s;}
+
+button{font-size:clamp(14px,4vw,20px);padding:10px 14px;margin:6px;cursor:pointer;}
+
+input{font-size:16px;width:80px;margin:4px;padding:4px 6px;}
+
+.damage{
+position:fixed;
+font-size:clamp(28px,8vw,44px);
+color:red;font-weight:bold;
+pointer-events:none;
+animation:pop 1s forwards;
+z-index:200;
+}
+@keyframes pop{
+0%{transform:translateY(0);opacity:1}
+100%{transform:translateY(-80px);opacity:0}
+}
+
+.shake{animation:shake 0.4s;}
+@keyframes shake{
+0%{transform:translateX(0)}
+25%{transform:translateX(-10px)}
+50%{transform:translateX(10px)}
+75%{transform:translateX(-10px)}
+100%{transform:translateX(0)}
+}
+
+/* 登場演出 */
+#appearOverlay{
+display:none;position:fixed;
+top:0;left:0;width:100%;height:100%;
+background:rgba(0,0,0,0.72);
+z-index:50;
+justify-content:flex-end;align-items:flex-end;
+}
+#appearBox{
+width:100%;background:black;
+border-top:4px solid white;
+padding:18px 24px;
+font-size:clamp(20px,5vw,30px);
+text-align:left;min-height:80px;
+letter-spacing:0.1em;
+}
+
+/* 先制攻撃演出 */
+#preemptOverlay{
+display:none;position:fixed;
+top:0;left:0;width:100%;height:100%;
+background:rgba(80,0,0,0.85);
+z-index:60;
+justify-content:center;align-items:center;
+flex-direction:column;
+}
+#preemptBox{
+font-size:clamp(22px,6vw,36px);
+color:#ff4444;
+font-weight:bold;
+text-shadow:0 0 20px #ff0000;
+letter-spacing:0.1em;
+text-align:center;
+}
+
+/* 結果画面 */
+#resultScreen{
+display:none;position:fixed;
+top:0;left:0;width:100%;height:100%;
+background-size:cover;background-position:center;
+z-index:100;
+flex-direction:column;justify-content:center;align-items:center;
+}
+#resultBox{
+background:rgba(0,0,0,0.80);
+border:4px solid white;
+padding:24px 36px;
+font-size:clamp(16px,4vw,24px);
+line-height:2;color:white;
+text-shadow:2px 2px 4px black;
+margin:0 16px;max-width:600px;width:92%;
+}
+#resultBox h2{font-size:clamp(22px,6vw,36px);margin-bottom:8px;}
+#retryBtn{margin-top:16px;font-size:clamp(16px,4vw,22px);padding:12px 28px;cursor:pointer;}
+
+.flash{
+position:fixed;top:0;left:0;
+width:100%;height:100%;
+background:white;opacity:0.6;
+pointer-events:none;
+animation:flash 0.3s forwards;z-index:300;
+}
+@keyframes flash{0%{opacity:0.7}100%{opacity:0}}
+
+.flash-red{
+position:fixed;top:0;left:0;
+width:100%;height:100%;
+background:red;opacity:0;
+pointer-events:none;
+animation:flash-red 0.6s forwards;z-index:300;
+}
+@keyframes flash-red{0%{opacity:0}20%{opacity:0.55}100%{opacity:0}}
+
+h1{font-size:clamp(20px,6vw,36px);margin:10px 0 4px;}
+h2.mname{font-size:clamp(18px,5vw,28px);}
+p{margin:6px 0;font-size:clamp(14px,3.5vw,20px);}
+#question{font-size:clamp(15px,4vw,22px);font-weight:bold;}
+
+/* 仕訳ボタン（2行対応） */
+.choice-btn{
+  display:inline-block;
+  font-size:clamp(13px,3.5vw,18px);
+  padding:10px 14px;
+  margin:6px;
+  cursor:pointer;
+  line-height:1.7;
+  text-align:center;
+  vertical-align:top;
+}
+.j-dr{color:inherit;}
+.j-sep{color:inherit;}
+.j-cr{color:inherit;}
+</style>
+</head>
+<body>
+
+
+
+<div id="safariGuide">
+  <button id="guideClose" onclick="document.getElementById('safariGuide').style.display='none'">✕ 閉じる</button>
+  <b>⚠️ Teamsアプリでは画像が表示されません</b>
+  <ol>
+    <li>画面右上の「…」→「ブラウザで開く」をタップ</li>
+    <li>SafariまたはChromeで開き直してください</li>
+  </ol>
+</div>
+
+<h1 id="gtitle" style="margin-top:10px;"></h1>
+<p id="smsg" style="margin:0 0 8px;"></p>
+
+<div class="window">
+  クラス <input id="class" placeholder="クラス">
+  番号 <input id="num" placeholder="番号">
+  氏名 <input id="name" placeholder="氏名" style="width:120px">
+  <br><br>
+  <button onclick="startGame()">ゲーム開始</button>
+</div>
+
+<div id="battle" style="display:none">
+  <h2 class="mname" id="monsterName"></h2>
+  <img id="monster" src="" alt="monster">
+  <div class="window">
+    <p id="question"></p>
+    <div id="choices"></div>
+    <p>勇者HP <span id="playerHP"></span></p>
+    <p>敵HP <span id="enemyHP"></span></p>
+    <p id="message" style="min-height:1.5em;"></p>
+    <p>倒したモンスター <span id="kill">0</span></p>
+  </div>
+</div>
+
+<!-- 登場演出 -->
+<div id="appearOverlay">
+  <div id="appearBox"></div>
+</div>
+
+<!-- 先制攻撃演出 -->
+<div id="preemptOverlay">
+  <div id="preemptBox"></div>
+</div>
+
+<!-- 結果画面 -->
+<div id="resultScreen">
+  <div id="resultBox">
+    <h2 id="resultTitle"></h2>
+    <div id="resultInfo"></div>
+    <button id="retryBtn" onclick="location.reload()">もう一度プレイ</button>
+  </div>
+</div>
+
+<script id="cfgData" type="application/json">{"gameTitle":"BOKI HUNTER","startMsg":"","mode":"slime","random":true,"monsters":{"slime":{"name":"スライム","img":"","hp":100},"goblin":{"name":"ゴブリン","img":"","hp":100},"dragon":{"name":"ドラゴン","img":"","hp":100}},"atkDmg":40,"recvDmg":30,"bgImg":"","clearImg":"","gameoverImg":"","slime":[["資産の増加","借方"],["資産の減少","貸方"],["費用の発生","借方"],["収益の発生","貸方"],["負債の増加","貸方"],["負債の減少","借方"],["純資産の増加","貸方"],["純資産の減少","借方"]],"goblin":[["現金","資産"],["売掛金","資産"],["商品","資産"],["貸付金","資産"],["建物","資産"],["土地","資産"],["買掛金","負債"],["借入金","負債"],["給料","費用"],["広告料","費用"],["支払家賃","費用"],["通信費","費用"],["交通費","費用"],["雑費","費用"],["支払利息","費用"],["受取手数料","収益"],["受取利息","収益"],["商品売買益","収益"]],"dragon":[["現金の出資を受けて開業した","現金/資本金","資本金/現金","当座預金/資本金","資本金/当座預金"],["商品を仕入れ、代金は掛けとした","仕入/買掛金","仕入/未払金","仕入/現金","仕入/当座預金"],["広告料を現金で支払った","広告料/現金","現金/広告料","交通費/現金","広告料/当座預金"],["現金を借りた","現金/借入金","現金/貸付金","現金/買掛金","買掛金/現金"],["買掛金を現金で支払った","買掛金/現金","現金/借入金","現金/貸付金","現金/買掛金"],["給料を現金で支払った","給料/現金","現金/広告料","交通費/現金","広告料/当座預金"]]}</script>
+
+<script>
+const CFG=JSON.parse(document.getElementById("cfgData").textContent)
+
+document.getElementById("gtitle").textContent=CFG.gameTitle
+if(CFG.startMsg)document.getElementById("smsg").textContent=CFG.startMsg
+
+// 画像読み込み失敗検出 → Safariガイド表示
+;(function(){
+  let src=CFG.monsters.slime.img||CFG.monsters.goblin.img||CFG.monsters.dragon.img||CFG.bgImg
+  if(!src)return
+  let t=new Image()
+  t.onerror=()=>document.getElementById("safariGuide").style.display="block"
+  t.src=src
+  setTimeout(()=>{if(t.naturalWidth===0)document.getElementById("safariGuide").style.display="block"},600)
+})()
+
+let monsters=[],playerHP=100,enemyHP=100,current=0,kills=0,startTime,busy=false
+
+function startGame(){
+  playerHP=100;kills=0;current=0
+  startTime=Date.now()
+  if(CFG.mode=="slime")         monsters=["slime"]
+  if(CFG.mode=="goblin")        monsters=["goblin"]
+  if(CFG.mode=="dragon")        monsters=["dragon"]
+  if(CFG.mode=="slime_dragon")  monsters=["slime","dragon"]
+  if(CFG.mode=="goblin_dragon") monsters=["goblin","dragon"]
+  if(CFG.mode=="all")           monsters=["slime","goblin","dragon"]
+  document.getElementById("battle").style.display="block"
+  document.getElementById("playerHP").textContent=playerHP
+  nextMonster()
+}
+
+function nextMonster(){
+  let type=monsters[current]
+  let m=CFG.monsters[type]
+  enemyHP=m.hp
+  document.getElementById("enemyHP").textContent=enemyHP
+  document.getElementById("monster").src=m.img||""
+  document.getElementById("monsterName").textContent=m.name
+  // 登場演出 → 先制チェック → バトル
+  showAppear(m.name, function(){
+    checkPreempt(function(){
+      ask()
+    })
+  })
+}
+
+// 登場演出
+function showAppear(name,cb){
+  busy=true
+  let ov=document.getElementById("appearOverlay")
+  let box=document.getElementById("appearBox")
+  ov.style.display="flex"; box.textContent=""
+  let text=name+"が　あらわれた！"
+  let i=0
+  let t=setInterval(()=>{
+    box.textContent+=text[i++]
+    if(i>=text.length){
+      clearInterval(t)
+      setTimeout(()=>{ov.style.display="none";busy=false;cb()},900)
+    }
+  },80)
+}
+
+// 先制攻撃チェック（20回に1回）
+function checkPreempt(cb){
+  if(Math.random()<0.05){
+    // 先制攻撃発動！
+    busy=true
+    let ov=document.getElementById("preemptOverlay")
+    let box=document.getElementById("preemptBox")
+    ov.style.display="flex"
+    let name=CFG.monsters[monsters[current]].name
+    let text=name+"の先制攻撃！"
+    box.textContent=""
+    let i=0
+    let t=setInterval(()=>{
+      box.textContent+=text[i++]
+      if(i>=text.length){
+        clearInterval(t)
+        setTimeout(()=>{
+          ov.style.display="none"
+          // 先制ダメージを与える
+          playerHP-=CFG.recvDmg
+          document.getElementById("playerHP").textContent=playerHP
+          damagePopup(-CFG.recvDmg)
+          flashRed()
+          typeText(name+"の先制攻撃！　勇者は"+CFG.recvDmg+"ダメージを受けた！")
+          busy=false
+          if(playerHP<=0){
+            setTimeout(()=>showResult(false),800)
+          }else{
+            setTimeout(()=>cb(),800)
+          }
+        },1000)
+      }
+    },80)
+  }else{
+    cb()
+  }
+}
+
+function rnd(a){return a[Math.floor(Math.random()*a.length)]}
+
+function getQ(type){
+  let pool=CFG[type]
+  return CFG.random?rnd(pool):pool[kills%pool.length]
+}
+
+function typeText(text){
+  let el=document.getElementById("message")
+  el.textContent=""; let i=0
+  let t=setInterval(()=>{
+    el.textContent+=text[i++]
+    if(i>=text.length)clearInterval(t)
+  },30)
+}
+
+
+// テキストを仕訳HTML（2行対応）に変換
+// "借方/貸方" → 1行、"借方1/貸方1&借方2/貸方2" → 2行
+function formatJournal(text){
+  let lines=text.split("&")
+  return lines.map(line=>{
+    let parts=line.split("/")
+    let dr=parts[0]||""; let cr=parts[1]||""
+    return '<span class="j-dr">'+dr+'</span><span class="j-sep"> / </span><span class="j-cr">'+cr+'</span>'
+  }).join('<br>')
+}
+
+function btn(text,ans,plain){
+  let b=document.createElement("button")
+  b.className="choice-btn"
+  if(plain){
+    b.textContent=text
+  }else{
+    b.innerHTML=formatJournal(text)
+  }
+  b.onclick=()=>answer(text==ans)
+  document.getElementById("choices").appendChild(b)
+}
+
+function ask(){
+  let type=monsters[current]
+  let q=getQ(type)
+  document.getElementById("question").textContent=q[0]
+  let c=document.getElementById("choices"); c.innerHTML=""
+  if(type=="slime"){btn("借方",q[1],true);btn("貸方",q[1],true)}
+  if(type=="goblin"){["資産","負債","純資産","収益","費用"].forEach(x=>btn(x,q[1],true))}
+  if(type=="dragon"){
+    let ch=[q[1],q[2],q[3],q[4]]
+    ch.sort(()=>Math.random()-0.5)
+    ch.forEach(x=>btn(x,q[1],false))
+  }
+}
+
+function damagePopup(val){
+  let d=document.createElement("div")
+  d.className="damage"
+  d.textContent=(val>0?"+":"")+val
+  d.style.left=(window.innerWidth/2-40)+"px"
+  d.style.top=(window.innerHeight/2)+"px"
+  document.body.appendChild(d)
+  setTimeout(()=>d.remove(),1000)
+}
+
+function flash(){
+  let f=document.createElement("div")
+  f.className="flash"
+  document.body.appendChild(f)
+  setTimeout(()=>f.remove(),300)
+}
+
+function flashRed(){
+  let f=document.createElement("div")
+  f.className="flash-red"
+  document.body.appendChild(f)
+  setTimeout(()=>f.remove(),600)
+}
+
+function shakeMonster(){
+  let m=document.getElementById("monster")
+  m.classList.add("shake")
+  setTimeout(()=>m.classList.remove("shake"),400)
+}
+
+function answer(ok){
+  if(busy)return
+  busy=true
+  if(ok){
+    enemyHP-=CFG.atkDmg
+    typeText("モンスターに"+CFG.atkDmg+"ダメージ！")
+    damagePopup(CFG.atkDmg)
+    flash();shakeMonster()
+  }else{
+    playerHP-=CFG.recvDmg
+    typeText("勇者は"+CFG.recvDmg+"ダメージを受けた！")
+    damagePopup(-CFG.recvDmg)
+    flashRed()
+  }
+  document.getElementById("playerHP").textContent=playerHP
+  document.getElementById("enemyHP").textContent=enemyHP
+  if(playerHP<=0){showResult(false);return}
+  if(enemyHP<=0){
+    kills++
+    document.getElementById("kill").textContent=kills
+    current++
+    if(current>=monsters.length){showResult(true,((Date.now()-startTime)/1000).toFixed(1));return}
+    setTimeout(nextMonster,800);busy=false;return
+  }
+  setTimeout(()=>{busy=false;ask()},800)
+}
+
+function showResult(ok,time){
+  let sc=document.getElementById("resultScreen")
+  let now=new Date()
+  let ds=now.getFullYear()+"/"+(now.getMonth()+1).toString().padStart(2,"0")+"/"+now.getDate().toString().padStart(2,"0")
+  let ts=now.getHours().toString().padStart(2,"0")+":"+now.getMinutes().toString().padStart(2,"0")+":"+now.getSeconds().toString().padStart(2,"0")
+  let cls=document.getElementById("class").value
+  let num=document.getElementById("num").value
+  let name=document.getElementById("name").value
+  let oldBg=document.getElementById("resultBgImg")
+  if(oldBg)oldBg.remove()
+  let bgSrc=ok?CFG.clearImg:CFG.gameoverImg
+  if(bgSrc){
+    let bi=document.createElement("img")
+    bi.id="resultBgImg"; bi.src=bgSrc
+    bi.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:-1;"
+    sc.appendChild(bi)
+  }
+  sc.style.backgroundColor=ok?(CFG.clearImg?"":"#1a3a6a"):(CFG.gameoverImg?"":"#3a0000")
+  if(ok){
+    document.getElementById("resultTitle").textContent="★ クリア！ ★"
+    document.getElementById("resultInfo").innerHTML=
+      "タイム："+time+"秒<br>日付："+ds+"<br>時刻："+ts+
+      "<br>クラス："+cls+"<br>番号："+num+"<br>氏名："+name+
+      "<br><br>📸 スクリーンショットを提出してください"
+  }else{
+    document.getElementById("resultTitle").textContent="GAME OVER"
+    document.getElementById("resultInfo").innerHTML=
+      "日付："+ds+"<br>時刻："+ts+
+      "<br>クラス："+cls+"<br>番号："+num+"<br>氏名："+name
+  }
+  sc.style.display="flex"
+}
+</script>
+</body>
+</html>
